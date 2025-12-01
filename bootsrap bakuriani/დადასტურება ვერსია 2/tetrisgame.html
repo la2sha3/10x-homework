@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(45deg, #1a1a2e, #16213e);
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+
+        .game-container {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        .game-board {
+            border: 3px solid #00ffff;
+            background: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .info-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 200px;
+        }
+
+        .info-box {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ffff;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .score {
+            font-size: 18px;
+            margin: 5px 0;
+        }
+
+        .next-piece {
+            width: 80px;
+            height: 80px;
+            margin: 10px auto;
+            border: 1px solid #333;
+        }
+
+        .controls {
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #ff0000;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            display: none; /* Hidden by default */
+        }
+
+        button {
+            background: #00ffff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            background: #ffffff;
+        }
+
+        .pause-btn {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameBoard" class="game-board" width="300" height="600"></canvas>
+
+        <div class="info-panel">
+            <div class="info-box">
+                <div class="score">Score: <span id="score">0</span></div>
+                <div class="score">Lines: <span id="lines">0</span></div>
+                <div class="score">Level: <span id="level">1</span></div>
+                <button class="pause-btn" onclick="togglePause()">Pause</button>
+            </div>
+
+            <div class="info-box">
+                <div>Next Piece:</div>
+                <canvas id="nextPiece" class="next-piece" width="80" height="80"></canvas>
+            </div>
+
+            <div class="info-box controls">
+                <strong>Controls:</strong><br>
+                ← → Move<br>
+                ↓ Soft Drop<br>
+                ↑ Rotate<br>
+                Space Hard Drop<br>
+                P Pause
+            </div>
+        </div>
+    </div>
+
+    <div id="gameOver" class="game-over">
+        <h2>Game Over!</h2>
+        <div>Final Score: <span id="finalScore">0</span></div>
+        <div>Lines Cleared: <span id="finalLines">0</span></div>
+        <button onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameBoard');
+        const ctx = canvas.getContext('2d');
+        const nextCanvas = document.getElementById('nextPiece');
+        const nextCtx = nextCanvas.getContext('2d');
+
+        const BOARD_WIDTH = 10;
+        const BOARD_HEIGHT = 20;
+        const BLOCK_SIZE = 30;
+
+        // Game state variables
+        let board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+        let score = 0;
+        let lines = 0;
+        let level = 1;
+        let gameRunning = true;
+        let isPaused = false;
+        let dropTime = 0;
+        let dropInterval = 1000; // Initial drop interval (1 second)
+
+        // Animation variables
+        let clearingLines = false;
+        let linesToClear = [];
+        const CLEAR_ANIMATION_DURATION = 200; // milliseconds for the animation
+
+        // Current and next Tetrominoes
+        let currentPiece;
+        let currentPieceX;
+        let currentPieceY;
+        let nextPiece;
+
+        // Define Tetromino shapes and colors
+        const PIECES = [
+            // I piece (Cyan)
+            { shape: [[1, 1, 1, 1]], color: '#00ffff' },
+            // O piece (Yellow)
+            { shape: [[1, 1], [1, 1]], color: '#ffff00' },
+            // T piece (Magenta)
+            { shape: [[0, 1, 0], [1, 1, 1]], color: '#ff00ff' },
+            // S piece (Green)
+            { shape: [[0, 1, 1], [1, 1, 0]], color: '#00ff00' },
+            // Z piece (Red)
+            { shape: [[1, 1, 0], [0, 1, 1]], color: '#ff0000' },
+            // J piece (Blue)
+            { shape: [[1, 0, 0], [1, 1, 1]], color: '#0000ff' },
+            // L piece (Orange)
+            { shape: [[0, 0, 1], [1, 1, 1]], color: '#ffa500' }
+        ];
+
+        // --- Game Logic Functions ---
+
+        // Generates a random new piece
+        function generatePiece() {
+            const rand = Math.floor(Math.random() * PIECES.length);
+            // Use JSON parse/stringify for a deep copy to avoid modifying the original PIECES array
+            const piece = JSON.parse(JSON.stringify(PIECES[rand]));
+            return piece;
+        }
+
+        // Draws a piece on a given context (main board or next piece canvas)
+        function drawPiece(pieceShape, offsetX, offsetY, context, color) {
+            pieceShape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        context.fillStyle = color;
+                        context.fillRect((offsetX + x) * BLOCK_SIZE, (offsetY + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        context.strokeStyle = '#333';
+                        context.strokeRect((offsetX + x) * BLOCK_SIZE, (offsetY + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+        }
+
+        // Draws the next piece in its dedicated canvas
+        function drawNextPiece() {
+            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            // Center the next piece in the small canvas
+            const pieceWidth = currentPiece.shape[0].length;
+            const pieceHeight = currentPiece.shape.length;
+            const startX = (nextCanvas.width / BLOCK_SIZE - pieceWidth) / 2;
+            const startY = (nextCanvas.height / BLOCK_SIZE - pieceHeight) / 2;
+            drawPiece(nextPiece.shape, startX, startY, nextCtx, nextPiece.color);
+        }
+
+        // Draws the main game board, including settled blocks and line clear animation
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the entire canvas
+
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    if (board[y][x] !== 0) {
+                        const color = board[y][x]; // board[y][x] now stores the color string
+
+                        // Animation logic: if we are clearing lines and this line is one of them,
+                        // draw it with a temporary animation color/effect.
+                        if (clearingLines && linesToClear.includes(y)) {
+                            ctx.fillStyle = '#FFFFFF'; // Flash white
+                            // Alternatively, for a fade effect, you could use rgba:
+                            // ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; // Semi-transparent white
+                        } else {
+                            ctx.fillStyle = color;
+                        }
+
+                        ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        ctx.strokeStyle = '#333';
+                        ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                }
+            }
+        }
+
+        // Checks if a piece can move to a given position
+        function isValidMove(pieceShape, newX, newY, currentBoard) {
+            for (let y = 0; y < pieceShape.length; y++) {
+                for (let x = 0; x < pieceShape[y].length; x++) {
+                    if (pieceShape[y][x] !== 0) {
+                        const boardX = newX + x;
+                        const boardY = newY + y;
+
+                        // Check boundaries
+                        if (boardX < 0 || boardX >= BOARD_WIDTH || boardY >= BOARD_HEIGHT) {
+                            return false;
+                        }
+                        // Check collision with existing blocks on the board (only if within vertical bounds)
+                        if (boardY >= 0 && currentBoard[boardY][boardX] !== 0) {
+                            return false;
+                        }
+                    }
+                };
+            }
+            return true;
+        }
+
+        // Rotates the current piece
+        function rotatePiece() {
+            const originalShape = currentPiece.shape;
+            // Transpose (rows to columns)
+            let newShape = originalShape[0].map((_, colIndex) => originalShape.map(row => row[colIndex]));
+            // Reverse each row to get 90-degree clockwise rotation
+            newShape = newShape.map(row => row.reverse());
+
+            if (isValidMove(newShape, currentPieceX, currentPieceY, board)) {
+                currentPiece.shape = newShape;
+            } else {
+                // Simple wall kick/floor kick: try moving left/right if rotation fails
+                if (isValidMove(newShape, currentPieceX - 1, currentPieceY, board)) {
+                    currentPiece.shape = newShape;
+                    currentPieceX--;
+                } else if (isValidMove(newShape, currentPieceX + 1, currentPieceY, board)) {
+                    currentPiece.shape = newShape;
+                    currentPieceX++;
+                }
+            }
+        }
+
+        // Locks the current piece into the board array
+        function lockPiece() {
+            currentPiece.shape.forEach((row, dy) => {
+                row.forEach((value, dx) => {
+                    if (value !== 0) {
+                        // Store the current piece's color in the board array
+                        board[currentPieceY + dy][currentPieceX + dx] = currentPiece.color;
+                    }
+                });
+            });
+
+            clearLines(); // Check and clear lines after locking
+            spawnNewPiece(); // Spawn the next piece
+        }
+
+        // Spawns the next piece, handles game over
+        function spawnNewPiece() {
+            currentPiece = nextPiece;
+            nextPiece = generatePiece();
+            currentPieceX = Math.floor(BOARD_WIDTH / 2) - Math.ceil(currentPiece.shape[0].length / 2);
+            currentPieceY = 0;
+
+            // Check for game over
+            if (!isValidMove(currentPiece.shape, currentPieceX, currentPieceY, board)) {
+                gameOver();
+            }
+            drawNextPiece(); // Update the next piece display
+        }
+
+        // Moves the current piece down
+        function dropPiece() {
+            if (isValidMove(currentPiece.shape, currentPieceX, currentPieceY + 1, board)) {
+                currentPieceY++;
+            } else {
+                lockPiece();
+            }
+        }
+
+        // Calculates score based on lines cleared and level
+        function calculateScore(linesCleared, currentLevel) {
+            const points = [0, 100, 300, 500, 800]; // Points for 0, 1, 2, 3, 4 lines
+            return points[linesCleared] * currentLevel;
+        }
+
+        // Handles line clearing logic with animation
+        function clearLines() {
+            let linesClearedThisTurn = 0;
+            linesToClear = []; // Reset the lines to clear for the animation
+
+            for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                let isLineFull = true;
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    if (board[y][x] === 0) {
+                        isLineFull = false;
+                        break;
+                    }
+                }
+
+                if (isLineFull) {
+                    linesClearedThisTurn++;
+                    linesToClear.push(y); // Store the index of the line to be cleared
+                }
+            }
+
+            if (linesClearedThisTurn > 0) {
+                clearingLines = true; // Set the flag to true for animation
+
+                // Update score, lines, level immediately
+                score += calculateScore(linesClearedThisTurn, level);
+                lines += linesClearedThisTurn;
+                document.getElementById('score').innerText = score;
+                document.getElementById('lines').innerText = lines;
+
+                // Level up logic
+                const linesPerLevel = 10; // Clear 10 lines to level up
+                if (lines >= level * linesPerLevel) {
+                    level++;
+                    dropInterval = Math.max(50, dropInterval * 0.9); // Speed up, but not faster than 50ms
+                    document.getElementById('level').innerText = level;
+                }
+
+                // Trigger the animation and then actually remove/shift lines after the delay
+                setTimeout(() => {
+                    const tempBoard = Array(BOARD_HEIGHT).fill(0).map(() => Array(BOARD_WIDTH).fill(0));
+                    let offset = 0; // How many rows to shift down
+                    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                        if (linesToClear.includes(y)) {
+                            offset++; // This row was cleared, so subsequent rows shift down more
+                        } else {
+                            // If this row is not cleared, copy it to the new position
+                            if (y + offset < BOARD_HEIGHT) { // Ensure within bounds
+                                tempBoard[y + offset] = board[y];
+                            }
+                        }
+                    }
+                    board = tempBoard; // Update the main board with cleared lines
+                    clearingLines = false; // Reset the flag
+                }, CLEAR_ANIMATION_DURATION);
+            }
+        }
+
+        // --- Game State Control ---
+
+        // Game Over function
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('gameOver').style.display = 'block';
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('finalLines').innerText = lines;
+        }
+
+        // Restart Game function
+        function restartGame() {
+            board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+            score = 0;
+            lines = 0;
+            level = 1;
+            dropInterval = 1000; // Reset initial drop interval
+            gameRunning = true;
+            isPaused = false;
+            clearingLines = false;
+            linesToClear = [];
+
+            document.getElementById('score').innerText = score;
+            document.getElementById('lines').innerText = lines;
+            document.getElementById('level').innerText = level;
+            document.getElementById('gameOver').style.display = 'none';
+
+            // Start new game
+            nextPiece = generatePiece(); // Generate first 'next' piece
+            spawnNewPiece();             // Move 'next' to 'current' and generate new 'next'
+            lastTime = 0; // Reset timer for game loop
+            update(); // Start the game loop
+        }
+
+        // Pause/Unpause function
+        function togglePause() {
+            isPaused = !isPaused;
+            document.querySelector('.pause-btn').innerText = isPaused ? 'Resume' : 'Pause';
+            if (!isPaused && gameRunning) {
+                lastTime = performance.now(); // Reset lastTime to prevent huge deltaTime after pause
+                update(); // Resume game loop
+            }
+        }
+
+        // --- Event Listeners ---
+
+        document.addEventListener('keydown', e => {
+            if (!gameRunning || isPaused || clearingLines) return; // Prevent input during pause or animation
+
+            if (e.key === 'ArrowLeft') {
+                if (isValidMove(currentPiece.shape, currentPieceX - 1, currentPieceY, board)) {
+                    currentPieceX--;
+                }
+            } else if (e.key === 'ArrowRight') {
+                if (isValidMove(currentPiece.shape, currentPieceX + 1, currentPieceY, board)) {
+                    currentPieceX++;
+                }
+            } else if (e.key === 'ArrowDown') {
+                dropPiece(); // Soft drop
+                dropTime = 0; // Reset dropTime to make it feel responsive
+            } else if (e.key === 'ArrowUp') {
+                rotatePiece();
+            } else if (e.key === ' ') { // Spacebar for hard drop
+                e.preventDefault(); // Prevent page scrolling
+                while (isValidMove(currentPiece.shape, currentPieceX, currentPieceY + 1, board)) {
+                    currentPieceY++;
+                }
+                lockPiece();
+            } else if (e.key === 'p' || e.key === 'P') {
+                togglePause();
+            }
+        });
+
+        // --- Game Loop ---
+        let lastTime = 0;
+        function update(time = 0) {
+            if (!gameRunning) return;
+            if (isPaused) {
+                requestAnimationFrame(update); // Continue loop even when paused to check isPaused state
+                return;
+            }
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            // Only drop pieces if not currently animating line clears
+            if (!clearingLines) {
+                dropTime += deltaTime;
+                if (dropTime > dropInterval) {
+                    dropPiece();
+                    dropTime = 0;
+                }
+            }
+
+            // Draw everything
+            drawBoard();
+            // Draw current piece only if not animating line clear (it would overlap)
+            // Or draw it, but make sure clearingLines doesn't affect currentPiece drawing
+            // Simplest: just draw the current piece normally.
+            drawPiece(currentPiece.shape, currentPieceX, currentPieceY, ctx, currentPiece.color);
+
+            requestAnimationFrame(update);
+        }
+
+        // --- Initial Game Start ---
+        // Generate the first "next" piece before the game loop starts
+        nextPiece = generatePiece();
+        // Spawn the first "current" piece and generate the new "next"
+        spawnNewPiece();
+        // Start the game loop
+        update();
+
+    </script>
+</body>
+</html>

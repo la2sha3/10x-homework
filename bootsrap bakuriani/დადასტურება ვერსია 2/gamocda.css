@@ -1,0 +1,158 @@
+*{
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+font-family: 'Kanit';
+}
+.main-container{
+display: flex;
+justify-content: center;
+height: auto;
+background: lightgray;
+}
+.flex-container{
+display: flex;
+width: 1200px;
+height: auto;
+background: white;
+}
+nav ul{
+    display: flex;
+    list-style-type: none;
+    padding: 10px;
+}
+nav ul a{
+    color: black;
+    text-decoration: none;
+    padding: 10px;
+}
+
+header .flex-container div:first-of-type{
+display: flex;
+flex: 70%;
+width: 300px;
+height: 100px;
+}
+header .flex-container div:last-of-type{
+    display: flex;
+    flex: 30%;
+height: 100px;  
+align-items: center;
+padding: 0 10px;
+
+}
+button{
+    color: white;
+    background: rgb(82, 180, 236);
+    cursor: pointer;
+    border: none;
+
+}
+.flex-container .a{
+display: flex;
+flex: 50%;
+background: lightgray;
+flex-direction: column;
+padding: 20px;
+justify-content: center;
+}
+
+.flex-container>.a>img{
+width: 600px;
+height: 400px;
+}
+.flex-container> .a>button{
+width: 100px;
+height: 30px;
+border-radius: 5px;
+}
+main .flex-container div{
+display: flex;
+flex: 50%;
+padding: 20px;
+}
+.pirveli p{
+    border-top: 1px solid gray;
+  padding: 5px;
+}
+.pirveli{
+    display: flex;
+    flex-direction: column;
+}
+table{
+    border-collapse: collapse;
+
+
+}
+td{
+    border: 1px solid red;
+height: 50px;
+    text-align: center;
+}
+
+.meore>div{
+    display: flex;
+    flex-direction:column;
+}
+.meore>div>div{
+    flex-direction: column;
+}
+.meore img {
+    width: 80px;
+    height: 80px;
+}
+.meore>div>div>p:first-of-type{
+    color: cyan;
+} 
+
+footer.flex-container{
+background: black;
+color: gray;
+padding: 20px;
+
+}
+footer.flex-container div:first-of-type{
+    display: flex;
+    flex: 80%;
+}
+footer.flex-container div:last-of-type{
+    display: flex;
+    flex: 20%;
+}
+@media (max-width:600px) {
+    .flex-container{
+        justify-content: center;
+        display: flex;
+        flex-direction: column;
+    }
+    nav ul {
+        display: none;
+    }
+    header .flex-container div img{
+        display: flex;
+        width: 100%;
+        height: 100px;
+margin-left: 100px;
+        }
+        .flex-container>.a>img{
+width: 100%;
+height: 400px;    
+}
+header .flex-container div:last-of-type{
+margin-left:200px ;
+padding: 10px;
+}
+.meore{
+    flex-direction: column;
+    text-align: center;
+}
+
+footer.flex-container div:last-of-type{
+display: none;
+}
+
+.meore img {
+width: 100%;
+height: 200px;
+}
+}

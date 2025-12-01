@@ -1,0 +1,45 @@
+/* .bg1{
+    background: lightblue;
+}
+.bg2{
+    background: lightgray;
+} */
+/* .m1{
+    margin-top: 200px!important;
+} */
+
+table{
+    border-collapse: collapse;
+
+
+}
+td{
+    border: 1px solid red;
+height: 50px;
+    text-align: center;
+}
+@media (max-width:600px){
+    video{
+        width: 100%;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
